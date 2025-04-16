@@ -1,0 +1,148 @@
+var roi = geometry;
+
+var modisSurfaceReflectance = ee.ImageCollection('MODIS/006/MYD09GA')
+  .filterDate('2018-09-01')  
+  .filterBounds(roi) 
+  .select(['sur_refl_b03', 'sur_refl_b01']);  
+
+var waterMask = ee.Image('MODIS/006/MOD44W/2015_01_01').select('water_mask').eq(1);
+
+var calculate_aCDOM = function(image) {
+  var Rrs_443 = image.select('sur_refl_b01').divide(10000).rename('Rrs_443');
+  var Rrs_667 = image.select('sur_refl_b03').divide(10000).rename('Rrs_667');
+  var ratio = Rrs_443.divide(Rrs_667);
+  var aCDOM = ee.Image(0.7102).multiply(ratio.pow(-1.0622)).rename('aCDOM_443');
+  return aCDOM;
+};
+
+var aCDOM_201809 = modisSurfaceReflectance.map(calculate_aCDOM).mean();
+
+var aCDOM_201809_ocean = aCDOM_201809.updateMask(waterMask);
+
+var visParams = {
+  min: 0,
+  max: 1,
+  palette: ['#f7fafd', '#d6e4ec', '#b7ccd9', '#98b5c6', '#7a9db3', '#5d86a0', '#3f6e8d', '#225679']
+};
+
+Map.centerObject(roi, 6);
+Map.addLayer(aCDOM_201809_ocean.clip(roi), visParams, 'aCDOM (443) - Sep 2018 (Ocean Only)');
+
+Export.image.toDrive({
+  image: aCDOM_201809_ocean.clip(roi),
+  description: 'aCDOM_443_MODIS_SurfaceReflectance_OceanImproved',
+  folder: 'EarthEngineExports',
+  fileNamePrefix: 'aCDOM_443_MODIS_SurfaceReflectance_OceanImproved',
+  region: roi,
+  scale: 500, 
+  maxPixels: 1e13
+});
+
+
+
+var roi = geometry;
+
+var modisSurfaceReflectance = ee.ImageCollection('MODIS/006/MYD09GA')
+  .filterDate('2018-09-01')
+  .filterBounds(roi)
+  .select(['sur_refl_b04', 'sur_refl_b03']);
+
+var waterMask = ee.Image('MODIS/006/MOD44W/2015_01_01').select('water_mask').eq(1);
+
+var calculate_aCDOM = function(image) {
+  var Rrs_488 = image.select('sur_refl_b04').divide(10000).rename('Rrs_488');
+  var Rrs_555 = image.select('sur_refl_b03').divide(10000).rename('Rrs_555');
+  var ratio = Rrs_488.divide(Rrs_555);
+  var aCDOM = ee.Image(0.2876).multiply(ratio.pow(-3.5911)).rename('a_corCDOM_443');
+  return aCDOM;
+};
+
+var aCDOM_201809 = modisSurfaceReflectance.map(calculate_aCDOM).mean();
+
+var aCDOM_201809_ocean = aCDOM_201809.updateMask(waterMask);
+
+var visParams = {
+  min: 0,
+  max: 1,
+  palette: ['#f7fafd', '#d6e4ec', '#b7ccd9', '#98b5c6', '#7a9db3', '#5d86a0', '#3f6e8d', '#225679']
+};
+
+Map.centerObject(roi, 6);
+Map.addLayer(aCDOM_201809_ocean.clip(roi), visParams, 'α_cor-CDOM (443) - Sep 2018 (Ocean Only)');
+
+Export.image.toDrive({
+  image: aCDOM_201809_ocean.clip(roi),
+  description: 'a_corCDOM_443_MODIS_SurfaceReflectance_OceanImproved',
+  folder: 'EarthEngineExports',
+  fileNamePrefix: 'a_corCDOM_443_MODIS_SurfaceReflectance_OceanImproved',
+  region: roi,
+  scale: 500, 
+  maxPixels: 1e13
+});
+
+var roi = geometry;
+
+var modisSurfaceReflectance = ee.ImageCollection('MODIS/006/MYD09GA')
+  .filterDate('2019-09-24')
+  .filterBounds(geometry) 
+  .select(['sur_refl_b03', 'sur_refl_b01']);
+
+var waterMask = ee.Image('MODIS/006/MOD44W/2015_01_01').select('water_mask').eq(1); // 1 表示水体
+
+var calculate_cor_aCDOM = function(image) {
+  var Rrs_443 = image.select('sur_refl_b01').divide(10000).rename('Rrs_443');
+  var Rrs_667 = image.select('sur_refl_b03').divide(10000).rename('Rrs_667');
+
+  var valid = Rrs_667.gt(0); 
+  var ratio = Rrs_443.divide(Rrs_667).updateMask(valid);
+  
+  var cor_aCDOM = ee.Image(0.2876).multiply(ratio.pow(-3.5911)).rename('cor_aCDOM_443');
+  return cor_aCDOM.updateMask(valid);
+};
+
+var cor_aCDOM_201809 = modisSurfaceReflectance.map(calculate_cor_aCDOM).mean();
+
+var cor_aCDOM_201809_ocean = cor_aCDOM_201809.updateMask(waterMask);
+
+var visParams = {
+  min: 0,
+  max: 1,
+  palette: ['#f7fafd', '#d6e4ec', '#b7ccd9', '#98b5c6', '#7a9db3', '#5d86a0', '#3f6e8d', '#225679']
+};
+
+Map.centerObject(geometry, 6);
+Map.addLayer(cor_aCDOM_201809_ocean.clip(geometry), visParams, 'cor-aCDOM (443) - Sep 2018 (Ocean Only)');
+
+var stats = cor_aCDOM_201809_ocean.reduceRegion({
+  reducer: ee.Reducer.minMax().combine(ee.Reducer.mean(), null, true),
+  geometry: geometry,
+  scale: 500,
+  maxPixels: 1e13
+});
+print('Statistics:', stats);
+
+var chart = ui.Chart.image.histogram({
+  image: cor_aCDOM_201809_ocean,
+  region: geometry,
+  scale: 1000,
+  maxPixels: 1e13
+})
+.setOptions({
+  title: 'Histogram of α_(cor-CDOM)(443)',
+  hAxis: {title: 'aCDOM (443)', minValue: 0, maxValue: 1},
+  vAxis: {title: 'Frequency'},
+  series: {0: {color: '#5d86a0'}}
+});
+
+print(chart);
+
+Export.image.toDrive({
+  image: cor_aCDOM_201809_ocean.clip(geometry),
+  description: 'aCDOM_443',
+  folder: 'EarthEngineExports',
+  fileNamePrefix: 'aCDOM_443',
+  region: geometry,
+  scale: 500, 
+  crs: 'EPSG:4326',
+  maxPixels: 1e13
+});
