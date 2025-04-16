@@ -1,7 +1,7 @@
 function maskClouds(image) {
   var stateQA = image.select('StateQA');
   
-   var cloudMask = stateQA.bitwiseAnd(1 << 10).eq(0); 
+  var cloudMask = stateQA.bitwiseAnd(1 << 10).eq(0); 
   var shadowMask = stateQA.bitwiseAnd(1 << 8).eq(0); 
   
   var combinedMask = cloudMask.and(shadowMask);
@@ -32,22 +32,22 @@ var sampledPoints = points.map(function(feature) {
 
   var image = modis.filterDate(date, date); 
 
-  var iSurface = ee.Algorithms.If(
-    image.size().gt(0), 
+   var toaRadiation = ee.Algorithms.If(
+    image.size().gt(0),
     image.mean().reduceRegion({
       reducer: ee.Reducer.first(),
       geometry: feature.geometry(),
       scale: 500
-    }).get('I_surface_b03'), 
-    null 
+    }).get('toa_radiation_b01'), 
+    null
   );
 
-  return feature.set('I_surface', iSurface);
+  return feature.set('TOA_Radiation', toaRadiation);
 });
 
 Export.table.toDrive({
   collection: sampledPoints,
-  description: 'MODIS_I_surface_Daily',
+  description: 'MODIS_TOA_Radiation_Daily',
   fileFormat: 'CSV'
 });
 
