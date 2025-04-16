@@ -1,0 +1,55 @@
+function maskClouds(image) {
+  var stateQA = image.select('StateQA');
+  
+   var cloudMask = stateQA.bitwiseAnd(1 << 10).eq(0); 
+  var shadowMask = stateQA.bitwiseAnd(1 << 8).eq(0); 
+  
+  var combinedMask = cloudMask.and(shadowMask);
+  
+  return image.updateMask(combinedMask).copyProperties(image, ['system:time_start']);
+}
+
+var modis = ee.ImageCollection('MODIS/061/MOD09A1')
+              .map(maskClouds); 
+
+var points = ee.FeatureCollection([
+  ee.Feature(ee.Geometry.Point([130.9979, 71.5027]), {date: '2010-09-09'}),
+  ee.Feature(ee.Geometry.Point([131.0002, 71.9983]), {date: '2010-09-09'}),
+  ee.Feature(ee.Geometry.Point([131, 72.47]), {date: '2010-09-09'}),
+  ee.Feature(ee.Geometry.Point([131.0033, 73.0015]), {date: '2010-09-09'}),
+  ee.Feature(ee.Geometry.Point([131.0003, 73.4996]), {date: '2010-09-09'}),
+  ee.Feature(ee.Geometry.Point([131.0004, 73.9975]), {date: '2010-09-10'}),
+  ee.Feature(ee.Geometry.Point([127.0038, 74.3325]), {date: '2010-09-12'}),
+  ee.Feature(ee.Geometry.Point([129.9825, 74.3337]), {date: '2010-09-12'}),
+  ee.Feature(ee.Geometry.Point([132.005, 74.335]), {date: '2010-09-12'}),
+  ee.Feature(ee.Geometry.Point([131.004, 74.3353]), {date: '2010-09-12'}),
+  ee.Feature(ee.Geometry.Point([123.993, 74.3342]), {date: '2010-09-13'}),
+  // Add more points as necessary...
+]);
+
+var sampledPoints = points.map(function(feature) {
+  var date = ee.Date(feature.get('date'));
+
+  var image = modis.filterDate(date, date);
+
+  var reflectance = ee.Algorithms.If(
+    image.size().gt(0),
+    image.mean().reduceRegion({
+      reducer: ee.Reducer.first(),
+      geometry: feature.geometry(),
+      scale: 500
+    }).get('sur_refl_b01'),
+    null
+  );
+
+  return feature.set('Surface_Reflectance', reflectance);
+});
+
+Export.table.toDrive({
+  collection: sampledPoints,
+  description: 'MODIS_Surface_Reflectance_Daily',
+  fileFormat: 'CSV'
+});
+
+Map.centerObject(points, 4);
+Map.addLayer(points, {color: 'blue'}, 'Sampling Points');
