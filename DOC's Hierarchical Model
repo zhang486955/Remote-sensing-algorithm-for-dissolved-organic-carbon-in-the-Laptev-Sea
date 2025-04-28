@@ -1,0 +1,134 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
+from sklearn.metrics import r2_score
+
+def doc_model(inputs, a, b, c, d, e, f, g, k, h, i, DOC_baseline):
+    depth, alpha_CDOM_443, Temp, Sal = inputs
+    DOC = np.zeros_like(depth)
+
+    mask_surface = depth <= 20
+    DOC[mask_surface] = a * np.log(b * alpha_CDOM_443[mask_surface] + 1) + c
+
+    mask_middle = (depth > 20) & (depth <= 50)
+    DOC[mask_middle] = (d * alpha_CDOM_443[mask_middle] +
+                        e * Temp[mask_middle] +
+                        f * Sal[mask_middle] +
+                        g)
+
+    mask_deep = depth > 50
+    DOC[mask_deep] = (DOC_baseline - k * depth[mask_deep] +
+                      h * Temp[mask_deep] +
+                      i * Sal[mask_deep])
+
+    return DOC
+
+def plot_results(data, popt):
+    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+
+    ax = axs[0, 0]
+    x = data['alpha_CDOM_443']
+    y = data['DOC_obs']
+
+    coef = np.polyfit(x, y, 1)
+    linear_fit = np.poly1d(coef)
+    y_linear = linear_fit(x)
+    r2_linear = r2_score(y, y_linear)
+
+    y_pred = doc_model((data['Depth'], data['alpha_CDOM_443'], data['Temp'], data['Sal']), *popt)
+    r2_nonlinear = r2_score(y, y_pred)
+
+    ax.scatter(x, y, color='orange', label='Data Points')
+    ax.plot(x, y_linear, 'r-', label=f'Linear Fit (R²={r2_linear:.3f})')
+    ax.plot(x, y_pred, 'b--', label=f'Nonlinear Fit (R²={r2_nonlinear:.3f})')
+    ax.set_xlabel('aCDOM(443)')
+    ax.set_ylabel('DOC')
+    ax.legend()
+    ax.set_title('(a)')
+
+    ax = axs[0, 1]
+    surface_data = data[data['Depth'] <= 20]
+    x = surface_data['alpha_CDOM_443']
+    y = surface_data['DOC_obs']
+    y_pred_surface = a_log(surface_data['alpha_CDOM_443'], *popt[0:3])
+    r2_surface = r2_score(y, y_pred_surface)
+
+    ax.scatter(x, y, color='orange', label='Surface Layer Data')
+    ax.plot(x, y_pred_surface, 'r-', label=f'Nonlinear Fit (R²={r2_surface:.3f})')
+    ax.set_xlabel('aCDOM(443)')
+    ax.set_ylabel('DOC')
+    ax.legend()
+    ax.set_title('(b)')
+
+    ax = axs[1, 0]
+    middle_data = data[(data['Depth'] > 20) & (data['Depth'] <= 50)]
+    x = middle_data['alpha_CDOM_443']
+    y = middle_data['DOC_obs']
+    coef_middle = np.polyfit(x, y, 1)
+    linear_fit_middle = np.poly1d(coef_middle)
+    y_middle_pred = linear_fit_middle(x)
+    r2_middle = r2_score(y, y_middle_pred)
+
+    ax.scatter(x, y, color='orange', label='Middle Layer Data')
+    ax.plot(x, y_middle_pred, 'r-', label=f'Line Fit (R²={r2_middle:.3f})')
+    ax.set_xlabel('aCDOM(443)')
+    ax.set_ylabel('DOC')
+    ax.legend()
+    ax.set_title('(c)')
+
+    ax = axs[1, 1]
+    deep_data = data[data['Depth'] > 50]
+    x = deep_data['alpha_CDOM_443']
+    y = deep_data['DOC_obs']
+    coef_deep = np.polyfit(x, y, 1)
+    linear_fit_deep = np.poly1d(coef_deep)
+    y_deep_pred = linear_fit_deep(x)
+    r2_deep = r2_score(y, y_deep_pred)
+
+    ax.scatter(x, y, color='orange', label='Deep Layer Data')
+    ax.plot(x, y_deep_pred, 'r-', label=f'Line Fit (R²={r2_deep:.3f})')
+    ax.set_xlabel('aCDOM(443)')
+    ax.set_ylabel('DOC')
+    ax.legend()
+    ax.set_title('(d)')
+
+    plt.tight_layout()
+    plt.show()
+
+def a_log(alpha, a, b, c):
+    return a * np.log(b * alpha + 1) + c
+
+if __name__ == "__main__":
+        filepath = 'C:\Users\HP\Desktop\OR_data.csv'
+    data = pd.read_csv(filepath)
+
+       data = data.rename(columns={
+        'aCDOM(443)': 'alpha_CDOM_443',
+        'DOC': 'DOC_obs'
+    })
+
+    xdata = (data['Depth'].values, data['alpha_CDOM_443'].values,
+             data['Temp'].values, data['Sal'].values)
+    ydata = data['DOC_obs'].values
+
+    initial_guess = [1, 1, 1, 1, 1, 1, 1, 0.01, 0.1, 0.1, 2.0]
+
+    popt, pcov = curve_fit(doc_model, xdata, ydata, p0=initial_guess)
+
+    param_names = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'k', 'h', 'i', 'DOC_baseline']
+    fitted_params = dict(zip(param_names, popt))
+    print("Fitted parameters:")
+    for name, value in fitted_params.items():
+        print(f"{name}: {value:.4f}")
+
+    param_df = pd.DataFrame([fitted_params])
+    param_df.to_csv('fitted_params.csv', index=False)
+
+    data['DOC_pred'] = doc_model(xdata, *popt)
+
+    print("\nPreview of fitting result:")
+    print(data)
+
+    # Plot results
+    plot_results(data, popt)
