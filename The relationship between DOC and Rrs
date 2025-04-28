@@ -1,0 +1,37 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
+
+def plot_single_scatter(x, y, fig_label, ratio_label, save_path):
+    plt.figure(figsize=(6, 6))
+    plt.scatter(x, y, color='blue', marker='x', label=ratio_label)
+    coef = np.polyfit(x, y, 1)
+    linear_fit = np.poly1d(coef)
+    y_pred = linear_fit(x)
+    r2 = r2_score(y, y_pred)
+    x_fit = np.linspace(x.min(), x.max(), 100)
+    y_fit = linear_fit(x_fit)
+    plt.plot(x_fit, y_fit, 'r--', label=f'Linear Fit (R²={r2:.3f})')
+    plt.xlabel('Observed aCDOM(443)')
+    plt.ylabel('Predicted aCDOM(443)')
+    plt.legend()
+    plt.title(f'({fig_label}) {ratio_label}')
+    plt.grid(True, linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+    plt.close()
+
+if __name__ == "__main__":
+    data = pd.read_csv(r'C:\\Users\\HP\\Desktop\\OR-data.csv')
+    
+    groups = {
+        'a': {'ratio': 'Rrs(443)/Rrs(555)', 'x': data['Observed_a'], 'y': data['Predicted_a']},
+        'b': {'ratio': 'Rrs(488)/Rrs(555)', 'x': data['Observed_b'], 'y': data['Predicted_b']},
+        'c': {'ratio': 'Rrs(443)/Rrs(667)', 'x': data['Observed_c'], 'y': data['Predicted_c']},
+        'd': {'ratio': 'Rrs(412)/Rrs(488)', 'x': data['Observed_d'], 'y': data['Predicted_d']},
+        'e': {'ratio': 'Rrs(412)/Rrs(555)', 'x': data['Observed_e'], 'y': data['Predicted_e']},
+    }
+    
+    for fig_label, info in groups.items():
+        plot_single_scatter(info['x'], info['y'], fig_label, info['ratio'], save_path=f'C:\\Users\\HP\\Desktop\\fig_{fig_label}.png')
